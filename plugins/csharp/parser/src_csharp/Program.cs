@@ -614,12 +614,14 @@ namespace CSharpParser
                 visitor.Visit(root);
                 
                 string status = visitor.FullyParsed ? "+" : "-";
-                Console.WriteLine($"{status} [{projectName}] {document.FilePath}");
+                Console.WriteLine($"[{projectName}] {document.FilePath}");
+                Console.WriteLine($"{status}{document.FilePath}");
             }
             catch (Exception ex)
             {
                 Console.Error.WriteLine($"Error parsing {document.FilePath}: {ex.Message}");
-                Console.WriteLine($"- [{projectName}] {document.FilePath}");
+                Console.WriteLine($"[{projectName}] {document.FilePath}");
+                Console.WriteLine($"-{document.FilePath}");
             }
         }
     }
