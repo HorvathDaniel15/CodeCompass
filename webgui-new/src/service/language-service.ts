@@ -34,6 +34,7 @@ export const createClient = (
       protocol: thrift.TJSONProtocol,
       https: config.webserver_https,
       path: `${config.webserver_path}/${workspace}/${serviceName}`,
+      timeout: 10000,
     },
   );
   client = thrift.createXHRClient(LanguageService, connection);

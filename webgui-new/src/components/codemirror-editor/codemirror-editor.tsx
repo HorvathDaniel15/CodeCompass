@@ -102,10 +102,12 @@ export const CodeMirrorEditor = (): JSX.Element => {
   }, [theme]);
 
   useEffect(() => {
+    createClient(appCtx.workspaceId, fileInfo?.type);
+  }, [appCtx.workspaceId, fileInfo]);
+
+  useEffect(() => {
     if (!editorRef.current || !editorRef.current.view) return;
     setHighlightRanges([]);
-
-    createClient(appCtx.workspaceId, fileInfo?.type);
   }, [appCtx.workspaceId, fileInfo, fileContent]);
 
   const createHighlightDecoration = (
