@@ -1,5 +1,4 @@
-﻿using static System.Console;
-using System.Linq;
+﻿using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.EntityFrameworkCore;
@@ -25,7 +24,16 @@ namespace CSharpParser
 
         static async Task<int> Main(string[] args)
         {
-            MSBuildLocator.RegisterDefaults();
+            try
+            {
+                MSBuildLocator.RegisterDefaults();
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Failed to register MSBuild: {ex.Message}");
+                return 1;
+            }
+
             _rootDir = new List<string>();
             int threadNum = 4;
 
@@ -43,7 +51,7 @@ namespace CSharpParser
             }
             catch (Exception)
             {
-                WriteLine("Error in parsing command!");
+                Console.WriteLine("Error in parsing command!");
                 return 1;
             }
             /*if (args.Length < 3)
@@ -85,23 +93,24 @@ namespace CSharpParser
                 return 1;
             }*/
 
-            //Converting the connectionstring into entiy framwork style connectionstring
+            if (_rootDir.Count == 0)
+            {
+                Console.WriteLine("Missing input path argument in CSharpParser!");
+                return 1;
+            }
+
+            string primaryInput = _rootDir[0];
+
+            //Converting the connectionstring into entity framework style connectionstring
             string csharpConnectionString = transformConnectionString();
 
             var options = new DbContextOptionsBuilder<CsharpDbContext>()
                             .UseNpgsql(csharpConnectionString)
                             .Options;
 
-            CsharpDbContext _context = new CsharpDbContext(options);
+            await using var _context = new CsharpDbContext(options);
             _context.Database.Migrate();
 
-            if (_rootDir.Count == 0)
-            {
-                WriteLine("Missing input path argument in CSharpParser!");
-                return 1;
-            }
-
-            string primaryInput = _rootDir[0];
 
             if (IsSolutionInput(primaryInput))
             {
@@ -133,7 +142,7 @@ namespace CSharpParser
                 return 1;
             }
 
-            WriteLine("Unsupported input path in CSharpParser!");
+            Console.WriteLine("Unsupported input path in CSharpParser!");
             return 1;
         }
 
@@ -157,7 +166,7 @@ namespace CSharpParser
             {
                 if (!Directory.Exists(p))
                 {
-                    WriteLine("Skipping non-directory input in legacy mode: " + p);
+                    Console.WriteLine("Skipping non-directory input in legacy mode: " + p);
                     continue;
                 }
 
@@ -167,7 +176,7 @@ namespace CSharpParser
 
             foreach (var f in allFiles)
             {
-                WriteLine(f);
+                Console.WriteLine(f);
             }
 
             IEnumerable<string> assemblies = GetSourceFilesFromDir(_buildDir, ".dll");
@@ -184,7 +193,7 @@ namespace CSharpParser
                 SyntaxTree tree = CSharpSyntaxTree.ParseText(programText, null, file);
                 trees.Add(tree);
             }
-            Write(trees.Count);
+            Console.Write(trees.Count);
 
             CSharpCompilation compilation = CSharpCompilation.Create("CSharpCompilation")
                 .AddReferences(MetadataReference.CreateFromFile(typeof(object).Assembly.Location))
@@ -220,7 +229,7 @@ namespace CSharpParser
 
             var ParsingTasks = new List<Task<int>>();
             int maxThread = threadNum < trees.Count() ? threadNum : trees.Count();
-            WriteLine(threadNum);
+            Console.WriteLine(threadNum);
             for (int i = 0; i < maxThread; i++)
             {                
                 ParsingTasks.Add(ParseTree(contextList[i],trees[i],compilation,i));
@@ -254,11 +263,11 @@ namespace CSharpParser
         {
             var ParsingTask = Task.Run(() =>
             {
-                WriteLine("ParallelRun " + tree.FilePath);
+                Console.WriteLine("ParallelRun " + tree.FilePath);
                 SemanticModel model = compilation.GetSemanticModel(tree);
                 var visitor = new AstVisitor(context, model, tree);
                 visitor.Visit(tree.GetCompilationUnitRoot());                
-                WriteLine((visitor.FullyParsed ? "+" : "-") + tree.FilePath);
+                Console.WriteLine((visitor.FullyParsed ? "+" : "-") + tree.FilePath);
                 return index;
             });
             return await ParsingTask;
@@ -287,12 +296,12 @@ namespace CSharpParser
                 }
                 catch (UnauthorizedAccessException e)
                 {
-                    WriteLine(e.Message);
+                    Console.WriteLine(e.Message);
                     continue;
                 }
                 catch (System.IO.DirectoryNotFoundException e)
                 {
-                    WriteLine(e.Message);
+                    Console.WriteLine(e.Message);
                     continue;
                 }
 
@@ -485,36 +494,6 @@ namespace CSharpParser
             return workspace;
         }
 
-        private static async Task<Solution> LoadInputAsync(string inputPath)
-        {
-            if (File.Exists(inputPath))
-            {
-                if (inputPath.EndsWith(".sln", StringComparison.OrdinalIgnoreCase) ||
-                    inputPath.EndsWith(".slnx", StringComparison.OrdinalIgnoreCase))
-                {
-                    return await LoadSolutionAsync(inputPath);
-                }
-                if (inputPath.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))
-                {
-                    return await LoadProjectAsync(inputPath);
-                }
-                else
-                {
-                    Console.Error.WriteLine($"Unsupported file type: {inputPath}");
-                    Console.Error.WriteLine("Supported: .sln, .slnx, .csproj");
-                    return null;
-                }
-            }
-            if (Directory.Exists(inputPath))
-            {
-                return null;
-            }
-            else
-            {
-                Console.Error.WriteLine($"Input path not found: {inputPath}");
-                return null;
-            }
-        }
 
         private static async Task<Solution> LoadSolutionAsync(string solutionPath)
         {
@@ -527,16 +506,6 @@ namespace CSharpParser
             return solution;
         }
 
-        private static async Task<Solution> LoadProjectAsync(string projectPath)
-        {
-            Console.WriteLine($"Loading project: {projectPath}");
-            using var workspace = CreateMsBuildWorkspace();
-            
-            var project = await workspace.OpenProjectAsync(projectPath);
-            Console.WriteLine($"Project loaded: {project.Name}");
-
-            return project.Solution;
-        }
 
         private static async Task ParseSolutionAsync(
             Solution solution,
@@ -597,14 +566,15 @@ namespace CSharpParser
             int effectiveThreadCount = Math.Max(1, Math.Min(threadCount, documents.Count));
             var documentGroups = documents.Chunk(documents.Count / effectiveThreadCount + 1);
 
+            var options = new DbContextOptionsBuilder<CsharpDbContext>()
+                .UseNpgsql(csharpConnectionString)
+                .Options;
+
             foreach (var group in documentGroups)
             {
                 tasks.Add(Task.Run(async () =>
                 {
-                    var options = new DbContextOptionsBuilder<CsharpDbContext>()
-                        .UseNpgsql(csharpConnectionString)
-                        .Options;
-                    var localDbContext = new CsharpDbContext(options);
+                    await using var localDbContext = new CsharpDbContext(options);
 
                     foreach (var document in group)
                     {
@@ -644,12 +614,12 @@ namespace CSharpParser
                 visitor.Visit(root);
                 
                 string status = visitor.FullyParsed ? "+" : "-";
-                Console.WriteLine($"{status}{document.FilePath}");
+                Console.WriteLine($"{status} [{projectName}] {document.FilePath}");
             }
             catch (Exception ex)
             {
                 Console.Error.WriteLine($"Error parsing {document.FilePath}: {ex.Message}");
-                Console.WriteLine($"-{document.FilePath}");
+                Console.WriteLine($"- [{projectName}] {document.FilePath}");
             }
         }
     }
