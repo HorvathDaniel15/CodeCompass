@@ -8,6 +8,7 @@ export const createClient = (
   workspace: string,
   fileType: string | undefined,
 ) => {
+  client = undefined;
   if (!config || !fileType) return;
 
   const service = () => {

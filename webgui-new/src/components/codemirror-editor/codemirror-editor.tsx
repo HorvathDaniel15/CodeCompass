@@ -141,9 +141,9 @@ export const CodeMirrorEditor = (): JSX.Element => {
 
   const highlightExtension = () => {
     return EditorView.decorations.of((view) => {
-      const decorations = highlightRanges.map((pos) =>
-        createHighlightDecoration(view, pos, highlightColor),
-      ) as never;
+      const decorations = highlightRanges
+        .map((pos) => createHighlightDecoration(view, pos, highlightColor))
+        .filter((d) => d !== undefined) as never;
       return Decoration.set(decorations, true);
     });
   };
@@ -164,9 +164,15 @@ export const CodeMirrorEditor = (): JSX.Element => {
   const updateHighlights = async (astNode: AstNodeInfo) => {
     const refTypes = await getReferenceTypes(astNode.id as string);
     if (visitedLastAstNode?.id !== astNode.id) {
+      const usageReferenceType = refTypes.get("Usage");
+      if (usageReferenceType === undefined) {
+        setHighlightRanges([]);
+        setVisitedLastAstNode(null);
+        return;
+      }
       const allReferences = await getReferences(
         astNode.id as string,
-        refTypes.get("Usage") as number,
+        usageReferenceType,
         [],
       );
       const referencesInFile = allReferences.filter(

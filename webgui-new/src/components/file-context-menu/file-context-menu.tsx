@@ -46,7 +46,8 @@ export const FileContextMenu = ({
   );
 
   useEffect(() => {
-    if (!fileInfo) return;
+    if (!fileInfo || fileInfo.isDirectory || fileInfo.type === "Unknown")
+      return;
     const init = async () => {
       createClient(appCtx.workspaceId, fileInfo?.type);
       const initDiagramTypes = await getFileDiagramTypes(fileInfo.id as string);

@@ -73,6 +73,7 @@ void CsharpServiceHandler::getAstNodeInfo(
   if (!file)
   {
     LOG(warning) << "[csharpservice] getAstNodeInfo: file not found for path: " << return_.range.file;
+    return_.range.file = ""; // File ID not found safely clear the file path instead of propagating string path
     return;
   }
   std::stringstream ss;

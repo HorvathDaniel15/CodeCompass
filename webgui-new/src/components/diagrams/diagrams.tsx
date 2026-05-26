@@ -8,6 +8,7 @@ import React, {
   useState,
   MouseEvent,
 } from "react";
+import { toast } from "react-toastify";
 import {
   createClient,
   getAstNodeInfo,
@@ -65,6 +66,11 @@ export const Diagrams = (): JSX.Element => {
             ? await getFileInfo(appCtx.projectFileId)
             : undefined;
 
+      if (!fileInfoForClient?.type) {
+        toast.error("File type is required to generate this diagram.");
+        return;
+      }
+
       createClient(appCtx.workspaceId, fileInfoForClient?.type);
 
       const initDiagramInfo =
@@ -121,6 +127,11 @@ export const Diagrams = (): JSX.Element => {
       const parsedDiagram = parser.parseFromString(diagram, "text/xml");
       const diagramSvg = parsedDiagram.getElementsByTagName("svg")[0];
 
+      if (!diagramSvg) {
+        toast.error("Failed to parse diagram or diagram is empty.");
+        return;
+      }
+
       diagramSvg.style.height = "100%";
       diagramSvg.style.cursor = "pointer";
 
@@ -153,6 +164,11 @@ export const Diagrams = (): JSX.Element => {
         : appCtx.projectFileId
           ? await getFileInfo(appCtx.projectFileId)
           : undefined;
+
+    if (!fileInfoForClient?.type) {
+      toast.error("File type is required to navigate to this diagram.");
+      return;
+    }
 
     createClient(appCtx.workspaceId, fileInfoForClient?.type);
 
@@ -214,6 +230,11 @@ export const Diagrams = (): JSX.Element => {
       "text/xml",
     );
     const diagramLegendSvg = parsedDiagramLegend.getElementsByTagName("svg")[0];
+
+    if (!diagramLegendSvg) {
+      toast.error("Failed to parse legend diagram or it is empty.");
+      return;
+    }
 
     diagramLegendSvg.style.height = "100%";
     diagramLegendContainerRef.current.replaceChildren(diagramLegendSvg);
