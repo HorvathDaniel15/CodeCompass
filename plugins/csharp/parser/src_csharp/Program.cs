@@ -60,8 +60,20 @@ namespace CSharpParser
                 return 1;
             }
 
-            string primaryInput = _rootDir[0];
+            try
+            {
+                return await RunParserAsync(_rootDir[0], threadNum);
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"CSharpParser failed: {ex.Message}");
+                Console.Error.WriteLine(ex);
+                return 1;
+            }
+        }
 
+        private static async Task<int> RunParserAsync(string primaryInput, int threadNum)
+        {
             // Converting the connectionstring into entity framework style connectionstring
             string csharpConnectionString = transformConnectionString();
 
@@ -380,7 +392,9 @@ namespace CSharpParser
         {
             try
             {
-                var solution = await LoadSolutionAsync(solutionPath);
+                // The workspace must stay alive while the solution is being parsed.
+                using var workspace = CreateMsBuildWorkspace();
+                var solution = await LoadSolutionAsync(workspace, solutionPath);
                 int documentCount = solution.Projects
                     .SelectMany(p => p.Documents)
                     .Count(d => !string.IsNullOrEmpty(d.FilePath));
@@ -503,10 +517,11 @@ namespace CSharpParser
             return workspace;
         }
 
-        private static async Task<Solution> LoadSolutionAsync(string solutionPath)
+        private static async Task<Solution> LoadSolutionAsync(
+            MSBuildWorkspace workspace,
+            string solutionPath)
         {
             Console.WriteLine($"Loading solution: {solutionPath}");
-            using var workspace = CreateMsBuildWorkspace();
 
             var solution = await workspace.OpenSolutionAsync(solutionPath);
             Console.WriteLine($"Solution loaded: {solution.FilePath}");
